@@ -1,0 +1,11 @@
+{ 
+  "name": "RunAnd-serwer",
+  "version": "0.0.1",
+  "dependencies": {
+    "express": "4.9.5",
+	"pg": "3.5.0",
+	"body-parser": "1.9.0",
+	"node-gyp": "1.0.2",
+	"forecast": "*"
+  }
+}
