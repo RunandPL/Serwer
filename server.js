@@ -7,6 +7,7 @@ var server = http.createServer(app);
 var html = fs.readFileSync('./index.html');
 var bodyParser = require('body-parser')
 var Forecast = require('forecast');
+var Q = require('Q');
 
 app.use(bodyParser.json());
 
@@ -23,12 +24,60 @@ var forecast = new Forecast({
 		seconds: 45
 	}
 });
-//[-33.8683, 151.2086]
+
+// left most = 14.117
+// right most = 24.133
+// top most = 54.833
+// down most = 49.000
+var leftMost = 14.117;
+var downMost = 49.000;
+var dx = 24.133 - leftMost;
+var dy = 54.833 - downMost;
+
+var coords = [];
+// split Poland territory into mesh
+for( var x=0; x < 2; x++ ) {
+	for(var y=0; y < 2; y++) {
+		var coord = {};
+		// szerokosc geograficzna
+		coord.latitude = downMost + ( dy / 2 ) * y;
+		// dlugosc geograficzna
+		coord.longitude = leftMost + ( dx / 2 ) * x;
+		
+		coords.push( coord );
+	}
+}
+
+var getWeatherJson = function( latitude, longitude ) {
+	var d = Q.defer();
+	forecast.get([coords[i].latitude, coords[i].longitude], true, function(err, weather) {
+		d.resolve( [latitude, longitude, weather] );
+	});
+	return d.promise;
+}
+
+var weatherMap = [];
+
+var qs = [];
+// make api calls for weather
+for( var i=0; i < coords.length; i++ ) {
+	
+	qs.push( getWeatherJson( coords[i].latitude, coords[i].longitude ).then( function( params ) {
+		weatherMap[String(params[0]) + ' ' + String(params[1])] = params[2];
+	}) );
+}
+
+Q.all( qs ).done( function( ) {
+	console.log( 'All data saved' );
+	for( var weatherInfo in weatherMap ) {
+		console.log( weatherMap[weatherInfo] );
+	}
+});
+
 var x, y;
 app.get('/weather/:x/:y', function(req, res) {
 	forecast.get([req.param('x'), req.param('y')], true, function(err, weather) {
 	  // if(err) return console.dir(err);
-	  // console.log(weather);
 		res.send(weather);
 	});
 });
