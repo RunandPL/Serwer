@@ -1,12 +1,16 @@
-{ 
+{
   "name": "RunAnd-serwer",
   "version": "0.0.1",
   "dependencies": {
+    "body-parser": "1.9.0",
+    "bookshelf": "^0.7.7",
     "express": "4.9.5",
-	"pg": "3.5.0",
-	"body-parser": "1.9.0",
-	"node-gyp": "1.0.2",
-	"forecast": "*",
-	"q": "1.0.1"
+    "express-jwt": "^0.4.0",
+    "forecast": "*",
+    "jsonwebtoken": "^1.1.2",
+    "knex": "^0.7.3",
+    "node-gyp": "1.0.2",
+    "pg": "3.5.0",
+    "q": "1.0.1"
   }
 }

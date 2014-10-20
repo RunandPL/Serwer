@@ -16,7 +16,7 @@ var forecast = new Forecast({
 
 var REFRESH_TIME = ( 4 * 60 * 60 );
         
-var XX = 10, YY = 10; // na ile pol dzielimy siatke polski
+var XX = 2, YY = 2; // na ile pol dzielimy siatke polski
 // left most = 14.117
 // right most = 24.133
 // top most = 54.833
