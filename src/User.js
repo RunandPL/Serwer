@@ -1,15 +1,5 @@
 
-var dbConfig = {
-    client: 'postgresql',
-    connection: {
-      host     : 'ec2-184-72-231-67.compute-1.amazonaws.com',
-      user     : 'bttjzotgxwisqf',
-      password : '6vvG9vGhNRns3RBH7XcoJhqYMc',
-      database : 'daj5aah1m705ur',
-      ssl: true,
-      port: 5432
-    }
-};
+var dbConfig = require('./config/Configuration').dbConfig;
 var knex = require('knex')(dbConfig);
 var bookshelf = require('bookshelf')(knex);
 var Q = require('Q');
@@ -25,7 +15,7 @@ exports.fillDatabaseWithData = function() {
             table.string('username').unique();
             table.string('password');
         });
-    }).then( function( ret ) {
+    }).then( function() {
         User = bookshelf.Model.extend({
             tableName: 'users'
         },

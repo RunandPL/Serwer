@@ -4,7 +4,6 @@ var pg = require('pg');
 var app = express();
 var server = http.createServer(app);
 var fs = require('fs');
-var html = fs.readFileSync('./index.html');
 var bodyParser = require('body-parser');
 var expressJwt = require('express-jwt');
 var jwt = require('jsonwebtoken');
@@ -19,7 +18,7 @@ app.use('/api', expressJwt({secret: secret}));
 //var weatherService = require('./weatherService');
 
 var User = require('./User');
-
+var Route = require('./Route');
 
 app.post('/login', function (req, res) {
 
@@ -38,7 +37,7 @@ app.post('/login', function (req, res) {
     });
 });
 
-app.get('/api/restricted', function (req, res) {
+app.get('/api/restricted', function(req, res) {
     console.log('user ' + req.user.username + ' is calling /api/restricted');
     res.json({
         name: 'Top protected restricted resource called by ' + req.user.username
@@ -48,6 +47,21 @@ app.get('/api/restricted', function (req, res) {
 //app.get('/weather/:x/:y', function(req, res) {
 //    res.send( weatherService.getWeather( req.param('x'), req.param('y') ) );
 //});
+
+app.post('/api/route', function(req, res) {
+   Route.saveRoute( req.user.username, req.body.route ).then( function( rs ) {
+       res.send( rs );
+   }); 
+});
+
+app.get('/routes', function(req, res) {
+    Route.getRoutes().then( function( routes ) {
+        res.send( routes );
+    })
+    .catch( function( err ) {
+        res.send( err );
+    });
+}); 
 
 app.get('/', function(req, res) {
     
@@ -80,8 +94,11 @@ app.get('/', function(req, res) {
     });
 });
 
-// Po wypelnieniu bazy uruchom serwer
-User.fillDatabaseWithData().then( function() {
+var fillDatabase = function() {
+    return Q.all( [User.fillDatabaseWithData(), Route.fillDatabaseWithData()]);
+};
+
+fillDatabase().then( function() {
     server.listen(3000);
     console.log('Express server started on port %s', server.address().port);
 });

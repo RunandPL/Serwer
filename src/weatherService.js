@@ -1,18 +1,10 @@
+var forecastConfig = require('./config/Configuration').forecastConfiguration;
 var Forecast = require('forecast');
 var Q = require('Q');
 var fs = require('fs');
 
 // Initialize forecast
-var forecast = new Forecast({
-    service: 'forecast.io',
-    key: '00cedfc6ff3daf7d397f990b4133e3d8',
-    units: 'celcius', // Only the first letter is parsed
-    cache: true,      // Cache API requests?
-    ttl: {            // How long to cache requests. Uses syntax from moment.js: http://momentjs.com/docs/#/durations/creating/
-        minutes: 27,
-        seconds: 45
-    }
-});
+var forecast = new Forecast(forecastConfig);
 
 var REFRESH_TIME = ( 4 * 60 * 60 );
         
