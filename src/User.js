@@ -13,10 +13,9 @@ User = bookshelf.Model.extend({
     loginWithUsernameAndPassword: function(username, password) {
         var d = Q.defer();
 
-//                if (!username || !password) throw new Error('Email and password are both required');
         if (!username || !password) return d.reject( 'Email and password are both required' );
 
-        new this({username: username.toLowerCase().trim()}).fetch({require: true}).then(function(user) {
+        new this({username: username}).fetch({require: true}).then(function(user) {
 
             if( user.get('password') === password )
                 d.resolve( user );
@@ -34,7 +33,7 @@ User = bookshelf.Model.extend({
         
         if (!username) return d.reject( 'Email is required' );
         
-        new this({username: username.toLowerCase().trim()}).fetch({require: true}).then(function(user) {
+        new this({username: username}).fetch({require: true}).then(function(user) {
             d.resolve( 'Username found' );
         },
         function( err ) {
@@ -44,6 +43,19 @@ User = bookshelf.Model.extend({
         }.bind( this ));
         
         return d.promise;
+    },
+    
+    getIdOfUser : function( username ) {
+        var d = Q.defer();
+        
+        new this({username: username}).fetch({require: true}).then(function(user) {
+            d.resolve( user.get('id') );
+        },
+        function() {
+            d.reject( 'Username not found' );
+        });
+        
+        return d.promise;
     }
 });
         
@@ -51,10 +63,12 @@ exports.fillDatabaseWithData = function() {
     var d = Q.defer();
     
     bookshelf.knex.schema.dropTableIfExists('users').then( function( ret ) {
+        
         return bookshelf.knex.schema.createTable('users', function (table) {
             table.increments('id').unique();
-            table.string('username').unique();
-            table.string('password');
+            table.string('username').unique().notNullable();
+            table.string('password').notNullable();
+            table.boolean('isTrainer').notNullable();
         });
     }).then( function() {
         
@@ -63,8 +77,8 @@ exports.fillDatabaseWithData = function() {
         });
 
         return Users.forge([
-            {username: 'user1@email.com', password: 'test'},
-            {username: 'user2@email.com', password: 'test'}
+            {username: 'user1@email.com', password: 'test', isTrainer: 'false'},
+            {username: 'user2@email.com', password: 'test', isTrainer: 'false'}
         ]).invokeThen('save');
     }).then(function( ret ) {
         d.resolve( ret );
@@ -79,4 +93,8 @@ exports.loginWithUsernameAndPassword = function( username, password ) {
 
 exports.loginWithGmail = function( username ) {
     return User.loginWithGmail( username );
+};
+
+exports.getIdOfUser = function( username ) {
+    return User.getIdOfUser( username );
 };

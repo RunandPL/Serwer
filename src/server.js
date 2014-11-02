@@ -21,9 +21,15 @@ app.use('/api', expressJwt({secret: secret}));
 
 var User = require('./User');
 var Route = require('./Route');
+var Workout = require('./Workout');
+
 
 app.post('/login', function (req, res) {
-
+    console.log( 'POST /login' );
+    
+    if( !req.body.username || !req.body.password )
+        res.status(400).send('Username and password are both required');
+    
     User.loginWithUsernameAndPassword( req.body.username, req.body.password ).then( function( user ) {
         
         var profile = {
@@ -39,22 +45,22 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/login/google', function (req, res) {
-    if( req.body.username ) {
-    console.log( req.body.username );
-        User.loginWithGmail( req.body.username ).then( function( response ) {
-            var profile = {
-                username: req.body.username
-            };
-            console.log( CONFIG.tokenExpirationTime() );
-            var token = jwt.sign({}, secret, { expiresInMinutes: 60 * 5 });
-            console.log( token );
-            res.json({ token: token });
-        });
-    }
+    console.log( 'POST /login/google' );
+    
+    if( !req.body.username )
+        res.status(400).send('Field: \'username\' is required');
+    
+    User.loginWithGmail( req.body.username ).then( function( response ) {
+        var profile = {
+            username: req.body.username
+        };
+        var token = jwt.sign(profile, secret, { expiresInMinutes: 60 * 5 });
+        res.json({ token: token });
+    });
 });
 
 app.get('/api/restricted', function(req, res) {
-    console.log('user ' + req.user.username + ' is calling /api/restricted');
+    console.log('GET /api/restricted');
     res.json({
         name: 'Top protected restricted resource called by ' + req.user.username
     });
@@ -62,22 +68,29 @@ app.get('/api/restricted', function(req, res) {
 
 //app.get('/weather/:x/:y', function(req, res) {
 //    res.send( weatherService.getWeather( req.param('x'), req.param('y') ) );
-//});
+//});s
 
-app.post('/api/route', function(req, res) {
-   Route.saveRoute( req.user.username, req.body.route ).then( function( rs ) {
-       res.send( rs );
-   }); 
+app.post('/api/workout', function(req, res) {
+    console.log('POST /api/workout by ' + req.user.username);
+    
+    Workout.addWorkout( req.user.username, req.body.route, req.body.lengthTime, req.body.burnedCalories, req.body.speedRate ).then( function( rs ) {
+        res.send( rs );
+    },
+    function( err ) {
+        res.status(400).send(err);
+    }); 
 });
 
-app.get('/routes', function(req, res) {
-    Route.getRoutes().then( function( routes ) {
-        res.send( routes );
-    })
-    .catch( function( err ) {
-        res.send( err );
+app.get('/api/workout', function(req, res) {
+    console.log('GET /api/workout by ' + req.user.username);
+    
+    Workout.getAllWorkoutsOfUser( req.user.username ).then( function( rs ) {
+        res.send( rs );
+    },
+    function( err ) {
+        res.status(400).send(err);
     });
-}); 
+});
 
 app.get('/', function(req, res) {
     
@@ -110,11 +123,27 @@ app.get('/', function(req, res) {
     });
 });
 
-var fillDatabase = function() {
-    return Q.all( [User.fillDatabaseWithData(), Route.fillDatabaseWithData()]);
+//var fillDatabase = function() {
+//    return Q.all( [User.fillDatabaseWithData(), Workout.fillDatabaseWithData()]);
+//};
+
+var fillAllDb = function() {
+    var d = Q.defer();
+    
+    Workout.dropTable().then( function() {
+        User.fillDatabaseWithData().then( function() {
+            Route.fillDatabaseWithData().then( function() {
+                Workout.fillDatabaseWithData().then( function() {
+                    d.resolve();
+                });
+            });
+        });
+    });
+    
+    return d.promise;
 };
 
-fillDatabase().then( function() {
+//fillAllDb().then( function() {
     server.listen(3000);
     console.log('Express server started on port %s', server.address().port);
-});
+//});
