@@ -20,4 +20,8 @@ exports.forecastConfiguration = {
         minutes: 27,
         seconds: 45
     }
-}
+};
+
+exports.tokenExpirationTime = function() {
+    return 60 * 5;
+};

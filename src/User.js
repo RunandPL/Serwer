@@ -6,6 +6,47 @@ var Q = require('Q');
 
 var Users, User;
 
+User = bookshelf.Model.extend({
+    tableName: 'users'
+},
+{
+    loginWithUsernameAndPassword: function(username, password) {
+        var d = Q.defer();
+
+//                if (!username || !password) throw new Error('Email and password are both required');
+        if (!username || !password) return d.reject( 'Email and password are both required' );
+
+        new this({username: username.toLowerCase().trim()}).fetch({require: true}).then(function(user) {
+
+            if( user.get('password') === password )
+                d.resolve( user );
+            else
+                d.reject( "bad password" );
+        }, function( err ) {
+            d.reject( err );
+        });
+
+        return d.promise;
+    },
+    
+    loginWithGmail: function(username) {
+        var d = Q.defer();
+        
+        if (!username) return d.reject( 'Email is required' );
+        
+        new this({username: username.toLowerCase().trim()}).fetch({require: true}).then(function(user) {
+            d.resolve( 'Username found' );
+        },
+        function( err ) {
+            this.forge({username: username}).save().then( function() {
+                d.resolve( 'Username not found and new entry was created' );
+            });
+        }.bind( this ));
+        
+        return d.promise;
+    }
+});
+        
 exports.fillDatabaseWithData = function() {
     var d = Q.defer();
     
@@ -16,30 +57,7 @@ exports.fillDatabaseWithData = function() {
             table.string('password');
         });
     }).then( function() {
-        User = bookshelf.Model.extend({
-            tableName: 'users'
-        },
-        {
-            loginWithUsernameAndPassword: function(username, password) {
-                var d = Q.defer();
-
-                if (!username || !password) throw new Error('Email and password are both required');
-
-                new this({username: username.toLowerCase().trim()}).fetch({require: true}).then(function(user) {
-
-                    if( user.get('password') === password ) {
-                        d.resolve( user );
-                    }
-                    else
-                        d.reject( "bad password" );
-                }, function( err ) {
-                    d.reject( err );
-                });
-
-                return d.promise;
-            }
-        });
-
+        
         Users = bookshelf.Collection.extend({
             model: User
         });
@@ -57,4 +75,8 @@ exports.fillDatabaseWithData = function() {
 
 exports.loginWithUsernameAndPassword = function( username, password ) {
     return User.loginWithUsernameAndPassword( username, password );
+};
+
+exports.loginWithGmail = function( username ) {
+    return User.loginWithGmail( username );
 };

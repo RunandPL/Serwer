@@ -8,8 +8,10 @@ var bodyParser = require('body-parser');
 var expressJwt = require('express-jwt');
 var jwt = require('jsonwebtoken');
 var Q = require('Q');
+var CONFIG = require('./config/Configuration');
 
 var secret = 'EWGWEG32T24523GSD';
+app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true
 }));
@@ -27,14 +29,28 @@ app.post('/login', function (req, res) {
         var profile = {
             username: user.get('username')
         };
-
-        // We are sending the profile inside the token
-        var token = jwt.sign(profile, secret, { expiresInMinutes: 60*5 });
+        
+        var token = jwt.sign(profile, secret, { expiresInMinutes: 60 * 5 });
         res.json({ token: token });
         
     }, function() {
         res.status(401).send('Wrong user or password');
     });
+});
+
+app.post('/login/google', function (req, res) {
+    if( req.body.username ) {
+    console.log( req.body.username );
+        User.loginWithGmail( req.body.username ).then( function( response ) {
+            var profile = {
+                username: req.body.username
+            };
+            console.log( CONFIG.tokenExpirationTime() );
+            var token = jwt.sign({}, secret, { expiresInMinutes: 60 * 5 });
+            console.log( token );
+            res.json({ token: token });
+        });
+    }
 });
 
 app.get('/api/restricted', function(req, res) {
