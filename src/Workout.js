@@ -20,7 +20,6 @@ Workout = bookshelf.Model.extend({
             d.reject('All fields are required!');
         
         User.getIdOfUser( username ).then( function( userId ) {
-            
             Route.saveRoute( route ).then( function( res ) {
                 var routeId = res.id;
 
@@ -42,12 +41,18 @@ Workout = bookshelf.Model.extend({
         return d.promise;
     },
     
+    // to do: zamienic ta petle for
     getAllWorkoutsOfUser: function( username ) {
         var d = Q.defer();
         
         User.getIdOfUser( username ).then( function( userId ) {
-            new this().fetchAll({user_id: userId}).then(function( workouts ) {
+            new this()
+            .query({where: {user_id: userId}})
+            .then(function( workouts ) {
                 var jsonWorkouts = workouts.toJSON();
+                
+                if( jsonWorkouts.length === 0 )
+                    d.resolve( [] );
                 
                 // zamienienie id tras na ich rzeczywiste wartości z tabeli tras
                 var totalProcessed = 0;
@@ -101,8 +106,8 @@ exports.fillDatabaseWithData = function() {
 
 exports.addWorkout = function( username, route, lengthTime, burnedCalories, speedRate ) {
     return Workout.addWorkout( username, route, lengthTime, burnedCalories, speedRate );
-}
+};
 
 exports.getAllWorkoutsOfUser = function( username ) {
     return Workout.getAllWorkoutsOfUser( username );
-}
+};
