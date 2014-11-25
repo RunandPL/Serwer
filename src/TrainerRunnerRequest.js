@@ -12,6 +12,47 @@ TrainerRunnerRequest = bookshelf.Model.extend({
     tableName: 'trainerRunnerRequests'
 },
 {
+    acceptRequest: function( username, isTrainer, requestID ) {
+        var d = Q.defer();
+        
+        if( isTrainer ) {
+            d.reject( 'User: ' + username + ' is a trainer, and he cannot accept requests');
+        }
+        
+        bookshelf.knex('trainerRunnerRequests')
+        .select('trainerRunnerRequests.id as requestID', 'trainer.username as trainer')
+        .join('users as runner', 'runner.id', 'trainerRunnerRequests.runner_id')
+        .join('users as trainer', 'trainer.id', 'trainerRunnerRequests.trainer_id')
+        .where('trainerRunnerRequests.id', requestID)
+        .where('runner.username', username)
+        .then( function( req ) {
+            if( req.length === 0 ) {
+                d.reject( 'User: ' + username + ' has no pending request with id: ' + requestID );
+            } else {
+                console.log( 'req', req );
+                User.setTrainer( username, req[0].trainer ).then( function( res ) {
+                    bookshelf.knex('trainerRunnerRequests')
+                    .where('id', requestID)
+                    .del()
+                    .then( function( resp ) {
+                        d.resolve( resp );
+                    },
+                    function( err ) {
+                        d.reject( err );
+                    });
+                },
+                function( err ) {
+                    d.reject( err );
+                });
+            }
+        },
+        function( err ) {
+            d.reject( err );
+        });
+
+        return d.promise;
+    },
+    
     rejectRequest: function( username, isTrainer, requestID ) {
         var d = Q.defer();
         
@@ -41,7 +82,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
                 },
                 function( err ) {
                     d.reject( err );
-                })
+                });
             }
         },
         function( err ) {
@@ -144,4 +185,8 @@ exports.getAllRequestsOfUser = function( username, isTrainer ) {
 
 exports.rejectRequest = function( username, isTrainer, requestID ) {
     return TrainerRunnerRequest.rejectRequest( username, isTrainer, requestID );
-}
+};
+
+exports.acceptRequest = function( username, isTrainer, requestID ) {
+    return TrainerRunnerRequest.acceptRequest( username, isTrainer, requestID );
+};

@@ -10,6 +10,53 @@ User = bookshelf.Model.extend({
     tableName: 'users'
 },
 {
+    getRunnersOfTrainer: function( username ) {
+        var d = Q.defer();
+        
+        this.getUser( username ).then( function( user ) {
+            if( !user.get('isTrainer') ) {
+                d.reject('User is not a trainer');
+            }
+            bookshelf.knex('users')
+            .select('username')
+            .where('trainer_id', user.get('id'))
+            .then( function( response ) {
+                d.resolve( response );
+            },
+            function( err ) {
+                d.reject( err );
+            });
+        });
+        
+        return d.promise;
+    },
+    
+    setTrainer: function( username, trainerUsername ) {
+        var d = Q.defer();
+        
+        this.getUser( trainerUsername ).then( function( user ) {
+            if( user.get('isTrainer') === true ) {
+                bookshelf.knex('users')
+                .where('username', username)
+                .update({
+                    trainer_id: user.get('id')
+                }).then( function( ) {
+                    d.resolve( 'Trainer: ' + trainerUsername + ' was set to user: ' + username );
+                },
+                function( err ) {
+                    d.reject( err );
+                });
+            } else {
+                d.reject( 'User with name: ' + trainerUsername + ' is not a trainer' );
+            }
+        },
+        function( err ) {
+            d.reject( 'User with name: ' + trainerUsername + ' wasn\'t found');
+        });
+        
+        return d.promise;
+    },
+    
     changePassword: function( username, newPassword ) {
         var d = Q.defer();
         
@@ -131,6 +178,7 @@ exports.fillDatabaseWithData = function() {
             table.string('username').unique().notNullable();
             table.string('password');
             table.boolean('isTrainer').notNullable();
+            table.integer('trainer_id').unsigned().references('users.id');
     }).then( function() {
         Users = bookshelf.Collection.extend({
             model: User
@@ -182,4 +230,12 @@ exports.registerUser = function( username, password, isTrainer ) {
 
 exports.changePassword = function( username, newPassword ) {
     return User.changePassword( username, newPassword );
+};
+
+exports.setTrainer = function( username, trainerUsername ) {
+    return User.setTrainer( username, trainerUsername );
+};
+
+exports.getRunnersOfTrainer = function( username ) {
+    return User.getRunnersOfTrainer( username );
 };

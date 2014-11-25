@@ -7,7 +7,7 @@ var fs = require('fs');
 var bodyParser = require('body-parser');
 var expressJwt = require('express-jwt');
 var jwt = require('jsonwebtoken');
-var Q = require('Q');
+var Q = require('q');
 var CONFIG = require('./config/Configuration');
 var validator = require('validator');
 var cors = require('cors');
@@ -26,31 +26,54 @@ app.use(cors());
 var User = require('./User');
 var Route = require('./Route');
 var Workout = require('./Workout');
+var LiveWorkout = require('./LiveWorkout');
 var TrainerRunnerRequest = require('./TrainerRunnerRequest');
+
+var parseRoute = function( route ) {
+    var d = Q.defer();
+    
+    try {
+        var obj = JSON.parse( route );
+        
+        for( var i=0; i < obj.length; i++ ) {
+            if( !('x' in obj[i]) || !('y' in obj[i]) || !('z' in obj[i]) ) {
+                d.reject( 'Route must include array of objects with x,y and z fields' );
+            }
+
+            if( !validator.isFloat(obj[i].x) || !validator.isFloat(obj[i].y) || !validator.isFloat(obj[i].z) ) {
+                d.reject( 'Fields x,y,z must be numbers' );
+            }
+        }
+        d.resolve('Route is fine');
+    } catch( err ) {
+        d.reject( 'Error parsing route' );
+    }
+    return d.promise;
+};
 
 app.post('/register', function (req, res) {
     console.log( 'POST /register' );
     
     if( !('username' in req.body) || !('password' in req.body) || !('isTrainer' in req.body) || !req.body.username || !req.body.password ) {
-        res.status(400).send('Username, password and isTrainer fields are required');
+        res.status(400).json({msg: 'Username, password and isTrainer fields are required'});
         return;
     }
     
     if( !validator.isEmail(req.body.username) ) {
-        res.status(400).send('Field: \'username\' must be email');
+        res.status(400).json({msg: 'Field: \'username\' must be email'});
         return;
     }
     
     var isTrainer = validator.toBoolean(req.body.isTrainer);
     
     User.registerUser( req.body.username, req.body.password, isTrainer ).then( function( response ) {
-        res.send( response.msg );
+        res.json({msg: response.msg});
     },
     function( err ) {
         if( err.code === '23505' )
-            res.status(401).send("User already exist");
+            res.status(401).json({msg: "User already exist"});
         else
-            res.status(401).send(err);
+            res.status(401).json({msg: err});
     });
 });
 
@@ -58,17 +81,18 @@ app.post('/login', function (req, res) {
     console.log( 'POST /login' );
     
     if( !('username' in req.body) || !('password' in req.body) || !req.body.username || !req.body.password ) {
-        res.status(400).send('Username and password are both required');
+        res.status(400).json({msg:'Username and password are both required'});
         return;
     }
     
     if( !validator.isEmail(req.body.username) ) {
-        res.status(400).send('Field: \'username\' must be email');
+        res.status(400).json({msg:'Field: \'username\' must be email'});
         return;
     }
     
     User.loginWithUsernameAndPassword( req.body.username, req.body.password ).then( function( user ) {
         var profile = {
+            id: user.get('id'),
             username: user.get('username'),
             isTrainer: user.get('isTrainer')
         };
@@ -76,7 +100,7 @@ app.post('/login', function (req, res) {
         var token = jwt.sign(profile, secret, { expiresInMinutes: 60 * 5 });
         res.json({ token: token });
     }, function() {
-        res.status(401).send('Wrong user or password');
+        res.status(401).json({msg:'Wrong user or password'});
     });
 });
 
@@ -84,12 +108,12 @@ app.post('/login/google', function (req, res) {
     console.log( 'POST /login/google by ' + req.body.username );
     
     if( !('username' in req.body) || !('isTrainer' in req.body) || !req.body.username ) {
-        res.status(400).send('Field: \'username\' and \'isTrainer\' is required');
+        res.status(400).json({msg:'Field: \'username\' and \'isTrainer\' is required'});
         return;
     }
     
     if( !validator.isEmail(req.body.username) ) {
-        res.status(400).send('Field: \'username\' must be email');
+        res.status(400).json({msg:'Field: \'username\' must be email'});
         return;
     }
     
@@ -97,6 +121,7 @@ app.post('/login/google', function (req, res) {
     
     User.loginWithGmail( req.body.username, isTrainer ).then( function( response ) {
         var profile = {
+            id: response.user.get('id'),
             username: response.user.get('username'),
             isTrainer: response.user.get('isTrainer')
         };
@@ -104,7 +129,19 @@ app.post('/login/google', function (req, res) {
         res.json({ token: token });
     },
     function( response ) {
-        res.status(401).send( response );
+        res.status(401).json({msg: response });
+    });
+});
+
+// get wszystkich tras publicznych
+app.get('/route', function(req, res) {
+    console.log('GET /route');
+    
+    Route.getPublicRoutes().then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.send( 400 ).json({msg: err})
     });
 });
 
@@ -112,15 +149,15 @@ app.post('/api/password/change', function(req, res) {
     console.log( 'POST /api/password/change by ' + req.user.username );
     
     if( !('password' in req.body) || !req.body.password ) {
-        res.status(400).send('Field: \'password\' is required');
+        res.status(400).json({msg:'Field: \'password\' is required'});
         return;
     }
     
     User.changePassword( req.user.username, req.body.password ).then( function( response ) {
-        res.send( "Password changed successfully");
+        res.json({msg: "Password changed successfully"});
     },
     function( err ) {
-        res.status(400).send( err );
+        res.status(400).json({ msg: err });
     });
 });
 
@@ -135,15 +172,66 @@ app.get('/api/restricted', function(req, res) {
 //    res.send( weatherService.getWeather( req.param('x'), req.param('y') ) );
 //});
 
+app.post('/api/route', function(req, res) {
+    console.log('GET /api/route by ' + req.user.username);
+   
+    if( !('route' in req.body) ) {
+        res.status(400).json({ msg:'Field: \'route\' is required'});
+        return;
+    }
+    
+    parseRoute(req.body.route).then( function( response ) {
+        var isPublicVar;
+        if( !('isPublic' in req.body) ) {
+            isPublicVar = true;
+        } else {
+            isPublicVar = validator.toBoolean(req.body.route.isPublic);
+        }
+
+        Route.saveRoute( req.body.route, req.body.description, req.body.title, isPublicVar, req.user.isTrainer, req.body.length, req.user.id ).then( function( response ) {
+            res.json({msg: response});
+        },
+        function( err ) {
+            res.status(400).json({msg: err});
+        });
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+app.get('/api/route', function(req, res) {
+    console.log('GET /api/route by ' + req.user.username);
+    
+    Route.getRouteOf( req.user.username ).then(function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+// pobieranie listy tras stworzonych przez wlasnego trenera biegacza
+app.get('/api/route/trainer', function(req, res) {
+    console.log('GET /api/route/trainer by ' + req.user.username);
+    
+    Route.getAllRoutesOfTrainerOf( req.user.id ).then(function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
 // GET liste zapytan o dodanie jako trener, jezeli trener wysyla to zapytanie, dostaje liste wyslanych przez siebie zapytan
 app.get('/api/connect', function(req, res) {
     console.log('GET /api/connect by ' + req.user.username);
     
     TrainerRunnerRequest.getAllRequestsOfUser( req.user.username, req.user.isTrainer ).then( function( response ) {
-        res.send( response );
+        res.json({msg: response});
     },
     function( err ) {
-        res.status(400).send( err );
+        res.status(400).json({msg: err });
     });
 });
 
@@ -151,20 +239,22 @@ app.post('/api/connect/runner', function(req, res) {
     console.log('POST /api/connect/runner by ' + req.user.username);
     
     if( !('runnerUserName' in req.body) || !req.body.runnerUserName ) {
-        res.status(400).send('Field: \'runnerUserName\' is required');
+        res.status(400).json({msg: 'Field: \'runnerUserName\' is required'});
         return;
     }
     
-    if( !validator.isEmail(req.body.runnerUserName) ) {
-        res.status(400).send('Field: \'runnerUserName\' must be email');
+    var email = validator.toString(req.body.runnerUserName); 
+    
+    if( !validator.isEmail(email) ) {
+        res.status(400).json({msg:'Field: \'runnerUserName\' must be email'});
         return;
     }
     
-    TrainerRunnerRequest.sendRequestFromTrainerToRunner( req.user.username, req.body.runnerUserName ).then( function( response ) {
-        res.send( 'Request was sent succesfully!' );
+    TrainerRunnerRequest.sendRequestFromTrainerToRunner( req.user.username, email ).then( function( response ) {
+        res.json({msg: 'Request was sent succesfully!'});
     },
     function( err ) {
-        res.status(400).send( err );
+        res.status(400).json({msg: err });
     });
 });
 
@@ -172,13 +262,13 @@ app.post('/api/connect/reject', function(req, res) {
     console.log('POST /api/connect/reject by ' + req.user.username);
     
     if( !('requestID' in req.body) ) {
-        res.status(400).send('Field: \'requestID\' is required');
+        res.status(400).json({msg:'Field: \'requestID\' is required'});
         return;
     }
     
     var requestInt = validator.toInt( req.body.requestID );
     if( isNaN(requestInt) ) {
-        res.status(400).send('Field: \'requestID\' must be an integer');
+        res.status(400).json({msg:'Field: \'requestID\' must be an integer'});
         return;
     }
     
@@ -186,29 +276,152 @@ app.post('/api/connect/reject', function(req, res) {
         res.send( 'Request with ID: ' + requestInt + ' was rejected' );
     },
     function( err ) {
-        res.status(400).send( err );
+        res.status(400).json({err: err });
     });
 });
+
+app.post('/api/connect/accept', function(req, res) {
+    console.log('POST /api/connect/accept by ' + req.user.username);
+   
+    if( !('requestID' in req.body) ) {
+        res.status(400).json({msg:'Field: \'requestID\' is required'});
+        return;
+    }
+    
+    var requestInt = validator.toInt( req.body.requestID );
+    if( isNaN(requestInt) ) {
+        res.status(400).json({msg:'Field: \'requestID\' must be an integer'});
+        return;
+    }
+    
+    TrainerRunnerRequest.acceptRequest( req.user.username, req.user.isTrainer, requestInt ).then( function( response ) {
+        res.json({msg: 'Request with ID: ' + requestInt + ' was accepted' });
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+app.get('/api/runners/list', function(req, res) {
+    console.log("GET /api/runners/list by " + req.user.username);
+    
+    User.getRunnersOfTrainer( req.user.username ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
 
 app.post('/api/workout', function(req, res) {
     console.log('POST /api/workout by ' + req.user.username);
     
-    Workout.addWorkout( req.user.username, req.body.route, req.body.lengthTime, req.body.burnedCalories, req.body.speedRate ).then( function( rs ) {
-        res.send( rs );
+    if( req.user.isTrainer ) {
+        res.status(400).json({msg: "User is a trainer"});
+        return;
+    }
+    
+    if( !('route' in req.body) ) {
+        res.status(400).json({ msg:'Field: \'route\' is required'});
+        return;
+    }
+    
+    if( typeof req.body.route !== 'object' ) {
+        res.status(400).json({ msg:'Field: \'route\' must be an object'});
+        return;
+    }
+    
+    if( !('route' in req.body.route) ) {
+        res.status(400).json({ msg: 'Field: \'route.route\' is required' });
+        return;
+    }
+    
+    parseRoute(req.body.route.route).then( function( response ) {
+        var isPublicVar;
+        if( !('isPublic' in req.body.route) ) {
+            isPublicVar = true;
+        } else {
+            isPublicVar = validator.toBoolean(req.body.route.isPublic);
+        }
+
+        if( 'length' in req.body.route ) {
+            isPublicVar = true;
+            var routeLength = validator.toFloat(req.body.route.length);
+            if( isNaN( routeLength ) ) {
+                res.status(400).json({ msg: 'Field: \'route.length\' must be a float' });
+                return;
+            }
+        }
+
+        if( !('lengthTime' in req.body) ) {
+            res.status(400).json({ msg:'Field: \'lengthTime\' is required'});
+            return;
+        }
+
+        if( !('burnedCalories' in req.body) ) {
+            res.status(400).json({ msg:'Field: \'burnedCalories\' is required'});
+            return;
+        }
+
+        if( !('speedRate' in req.body) ) {
+            res.status(400).json({ msg:'Field: \'speedRate\' is required'});
+            return;
+        }
+
+        Workout.addWorkout( req.user.username, {
+            route: req.body.route.route,
+            description: req.body.route.description,
+            title: req.body.route.title,
+            isPublic: isPublicVar,
+            length: req.body.route.length
+        }, req.body.lengthTime, req.body.burnedCalories, req.body.speedRate ).then( function( rs ) {
+            res.json({msg: rs});
+        },
+        function( err ) {
+            res.status(400).json({msg: err});
+        }); 
     },
     function( err ) {
-        res.status(400).send(err);
-    }); 
+        res.status(400).json({msg: err});
+    });
+});
+
+app.post('/api/live/start', function(req, res) {
+    console.log('POST /api/live/start by ' + req.user.username);
+    
+    if( !('x' in req.body) || !('y' in req.body) || !('z' in req.body) ) {
+        res.status(400).json({ msg:'Fields: \'x y z\' are required'});
+        return;
+    }
+    
+    LiveWorkout.startLiveWorkout( req.user.username, req.user.isTrainer, req.body.x, req.body.y, req.body.z ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+app.get('/api/live', function(req, res) {
+    console.log('GET /api/live by ' + req.user.username);
+    
+    LiveWorkout.getLiveTrainingsOfTrainerRunners( req.user.username ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
 });
 
 app.get('/api/workout', function(req, res) {
     console.log('GET /api/workout by ' + req.user.username);
     
     Workout.getAllWorkoutsOfUser( req.user.username ).then( function( rs ) {
-        res.send( rs );
+        res.json({msg: rs });
     },
     function( err ) {
-        res.status(400).send(err);
+        res.status(400).json({msg:err});
     });
 });
 

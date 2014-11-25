@@ -20,7 +20,7 @@ Workout = bookshelf.Model.extend({
             d.reject('All fields are required!');
         
         User.getIdOfUser( username ).then( function( userId ) {
-            Route.saveRoute( route ).then( function( res ) {
+            Route.saveRoute( route.route, route.description, route.title, route.isPublic, false, route.length, userId ).then( function( res ) {
                 var routeId = res.id;
 
                 this.forge({ lengthTime: lengthTime, burnedCalories: burnedCalories, speedRate: speedRate, user_id: userId, route_id: routeId }).save().then( function() {
@@ -41,43 +41,21 @@ Workout = bookshelf.Model.extend({
         return d.promise;
     },
     
-    // to do: zamienic ta petle for
     getAllWorkoutsOfUser: function( username ) {
         var d = Q.defer();
         
-        User.getIdOfUser( username ).then( function( userId ) {
-            new this()
-            .query({where: {user_id: userId}})
-            .then(function( workouts ) {
-                var jsonWorkouts = workouts.toJSON();
-                
-                if( jsonWorkouts.length === 0 )
-                    d.resolve( [] );
-                
-                // zamienienie id tras na ich rzeczywiste wartości z tabeli tras
-                var totalProcessed = 0;
-                for( var i=0; i < jsonWorkouts.length; i++ ) {
-                    ( function( i ) {
-                        Route.getRouteWithId( jsonWorkouts[i].route_id ).then( function( rs ) {
-                            delete jsonWorkouts[i].route_id;
-                            delete jsonWorkouts[i].user_id;
-                            jsonWorkouts[i].route = rs.get('route');
-
-                            totalProcessed++;
-                            if( totalProcessed === jsonWorkouts.length ) {
-                                d.resolve( jsonWorkouts );
-                            }
-                        },
-                        function( err ) {
-                            d.reject( err );
-                        });
-                    })( i );
-                }
-            },
-            function( err ) {
-                d.reject( err );
-            });
-        }.bind( this ) );
+        bookshelf.knex('workouts')
+        .select('workouts.id', 'workouts.lengthTime', 'workouts.burnedCalories', 'workouts.speedRate',
+                'route.route as route_route', 'route.description as route_description', 'route.title as route_title', 'route.isPublic as route_isPublic', 'route.isCreatedByTrainer as route_isCreatedByTrainer', 'route.length as route_length' )
+        .join('users as user', 'user.id', 'workouts.user_id')
+        .join('routes as route', 'route.id', 'workouts.route_id')
+        .where('user.username', username)
+        .then( function( response ) {
+            d.resolve( response );
+        },
+        function( err ) {
+            d.reject( err );
+        });
         
         return d.promise;
     }
