@@ -313,6 +313,16 @@ app.get('/api/runners/list', function(req, res) {
     });
 });
 
+app.get('/api/trainer', function(req, res) {
+    console.log("GET /api/trainer by " + req.user.username);
+    
+    User.getTrainerOfUser( req.user.username ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
 
 app.post('/api/workout', function(req, res) {
     console.log('POST /api/workout by ' + req.user.username);
@@ -395,13 +405,48 @@ app.post('/api/live/start', function(req, res) {
         return;
     }
     
-    LiveWorkout.startLiveWorkout( req.user.username, req.user.isTrainer, req.body.x, req.body.y, req.body.z ).then( function( response ) {
+    var x = validator.toFloat( req.body.x );
+    var y = validator.toFloat( req.body.y );
+    var z = validator.toFloat( req.body.z );
+    
+    if( isNaN(x) || isNaN(y) || isNaN(z) ) {
+        res.status(400).json({ msg:'Fields: \'x y z\' must be floats'});
+        return;
+    }
+    
+    LiveWorkout.startLiveWorkout( req.user.username, req.user.isTrainer, x, y, z ).then( function( response ) {
         res.json({msg: response});
     },
     function( err ) {
         res.status(400).json({msg: err});
     });
 });
+
+app.post('/api/live/update', function(req, res) {
+    console.log('POST /api/live/start by ' + req.user.username);
+    
+    if( !('x' in req.body) || !('y' in req.body) || !('z' in req.body) ) {
+        res.status(400).json({ msg:'Fields: \'x y z\' are required'});
+        return;
+    }
+    
+    var x = validator.toFloat( req.body.x );
+    var y = validator.toFloat( req.body.y );
+    var z = validator.toFloat( req.body.z );
+    
+    if( isNaN(x) || isNaN(y) || isNaN(z) ) {
+        res.status(400).json({ msg:'Fields: \'x y z\' must be floats'});
+        return;
+    }
+    
+    LiveWorkout.updateLiveWorkout( req.user.username, x, y, z ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
 
 app.get('/api/live', function(req, res) {
     console.log('GET /api/live by ' + req.user.username);
@@ -414,6 +459,28 @@ app.get('/api/live', function(req, res) {
     });
 });
 
+app.post('/api/live/message', function(req, res) {
+    console.log('GET /api/live by ' + req.user.username);
+    
+    if( !('message' in req.body) || !req.body.message ) {
+        res.status(400).json({ msg:'Field: \'message\' is required'});
+        return;
+    }
+    
+    if( !('username' in req.body) || !req.body.username ) {
+        res.status(400).json({ msg:'Field: \'username\' is required'});
+        return;
+    }
+    
+    LiveWorkout.sendMessageToOwnRunner( req.user.username, req.user.isTrainer, req.body.username, req.body.message ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+
 app.get('/api/workout', function(req, res) {
     console.log('GET /api/workout by ' + req.user.username);
     
@@ -422,6 +489,17 @@ app.get('/api/workout', function(req, res) {
     },
     function( err ) {
         res.status(400).json({msg:err});
+    });
+});
+
+app.get('/api/password', function(req, res) {
+    console.log('GET /api/password by ' + req.user.username);
+    
+    User.doUserGotPassword( req.user.username ).then( function( response ) {
+        res.json({msg: "Password found"});
+    },
+    function( err ) {
+        res.status(404).json({msg: "Password not found"});
     });
 });
 

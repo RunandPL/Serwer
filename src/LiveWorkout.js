@@ -64,7 +64,11 @@ exports.updateLiveWorkout = function( username, x, y, z ) {
         if( liveTrainings[i].username === username ) {
             var training = liveTrainings[i];
             var route = JSON.parse( training.route );
-            route.push( x, y, z );
+            route.push({
+                x: x,
+                y: y,
+                z: z
+            });
             liveTrainings[i].route = JSON.stringify( route );
             
             d.resolve( liveTrainings[i] );
@@ -110,6 +114,35 @@ exports.getLiveTrainingsOfTrainerRunners = function( trainerUsername ) {
     function( err ) {
         d.reject( err );
     });
+    
+    return d.promise;
+};
+
+exports.sendMessageToOwnRunner = function( trainerUsername, isTrainer, runnerUsername, message ) {
+    var d = Q.defer();
+
+    if( !isTrainer ) {
+        d.reject( "User: " + trainerUsername + " is not a trainer" );
+    } else {
+        User.getRunnersOfTrainer( trainerUsername ).then( function( response ) {
+            var good = false;
+            for( var i=0; i < response.length; i++ ) {
+                for( var j=0; j < liveTrainings.length; j++ ) {
+                    if( liveTrainings[j].username === response[i].username && liveTrainings[j].username === runnerUsername ) {
+                        good = true;
+                        liveTrainings[j].messages.push({
+                            msg: message
+                        });
+                        d.resolve( "Message sent" );
+                        break;
+                    }
+                }
+            }
+            if( !good ) {
+                d.reject( "User you are trying to send message is not your, or isn't currently training" );
+            }
+        });
+    }
     
     return d.promise;
 };

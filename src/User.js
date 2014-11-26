@@ -2,7 +2,7 @@
 var dbConfig = require('./config/Configuration').dbConfig;
 var knex = require('knex')(dbConfig);
 var bookshelf = require('bookshelf')(knex);
-var Q = require('Q');
+var Q = require('q');
 
 var Users, User;
 
@@ -10,6 +10,37 @@ User = bookshelf.Model.extend({
     tableName: 'users'
 },
 {
+    getTrainerOfUser : function( username ) {
+        var d = Q.defer();
+        
+        bookshelf.knex('users')
+        .select( 'trainer.username as trainer')
+        .join('users as trainer', 'users.trainer_id', 'trainer.id')
+        .where('users.username', username)
+        .then( function( resp ) {
+            d.resolve( resp );
+        },
+        function( err ) {
+            d.reject( err );
+        });
+        
+        return d.promise;
+    },
+    
+    doUserGotPassword: function( username ) {
+        var d = Q.defer();
+        
+        this.getUser( username ).then( function( user ) {
+            if( user.get('password') != null ) {
+                d.resolve();
+            } else {
+                d.reject();
+            }
+        });
+        
+        return d.promise;
+    },
+    
     getRunnersOfTrainer: function( username ) {
         var d = Q.defer();
         
@@ -238,4 +269,12 @@ exports.setTrainer = function( username, trainerUsername ) {
 
 exports.getRunnersOfTrainer = function( username ) {
     return User.getRunnersOfTrainer( username );
+};
+
+exports.doUserGotPassword = function( username ) {
+    return User.doUserGotPassword( username );
+};
+
+exports.getTrainerOfUser = function( username ) {
+    return User.getTrainerOfUser( username );
 };

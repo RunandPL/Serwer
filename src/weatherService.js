@@ -1,6 +1,6 @@
 var forecastConfig = require('./config/Configuration').forecastConfiguration;
 var Forecast = require('forecast');
-var Q = require('Q');
+var Q = require('q');
 var fs = require('fs');
 
 // Initialize forecast

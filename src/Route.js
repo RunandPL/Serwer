@@ -2,7 +2,7 @@
 var dbConfig = require('./config/Configuration').dbConfig;
 var knex = require('knex')(dbConfig);
 var bookshelf = require('bookshelf')(knex);
-var Q = require('Q');
+var Q = require('q');
 
 var Route, Routes;
 
