@@ -23,5 +23,11 @@ exports.forecastConfiguration = {
 };
 
 exports.tokenExpirationTime = function() {
-    return 60 * 5;
+    return 60 * 999999999;
 };
+
+var knex = require('knex')(exports.dbConfig);
+var bookshelf = require('bookshelf')(knex);
+
+exports.knex = knex;
+exports.bookshelf = bookshelf;

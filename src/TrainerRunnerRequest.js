@@ -1,14 +1,15 @@
 
-var dbConfig = require('./config/Configuration').dbConfig;
-var knex = require('knex')(dbConfig);
-var bookshelf = require('bookshelf')(knex);
+var CONFIG = require('./config/Configuration');
+var dbConfig = CONFIG.dbConfig;
+//var knex = require('knex')(dbConfig);
+//var bookshelf = require('bookshelf')(knex);
 var Q = require('q');
 
 var User = require('./User');
 
 var TrainerRunnerRequest, TrainerRunnerRequests;
 
-TrainerRunnerRequest = bookshelf.Model.extend({
+TrainerRunnerRequest = CONFIG.bookshelf.Model.extend({
     tableName: 'trainerRunnerRequests'
 },
 {
@@ -19,7 +20,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
             d.reject( 'User: ' + username + ' is a trainer, and he cannot accept requests');
         }
         
-        bookshelf.knex('trainerRunnerRequests')
+        CONFIG.bookshelf.knex('trainerRunnerRequests')
         .select('trainerRunnerRequests.id as requestID', 'trainer.username as trainer')
         .join('users as runner', 'runner.id', 'trainerRunnerRequests.runner_id')
         .join('users as trainer', 'trainer.id', 'trainerRunnerRequests.trainer_id')
@@ -31,7 +32,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
             } else {
                 console.log( 'req', req );
                 User.setTrainer( username, req[0].trainer ).then( function( res ) {
-                    bookshelf.knex('trainerRunnerRequests')
+                    CONFIG.bookshelf.knex('trainerRunnerRequests')
                     .where('id', requestID)
                     .del()
                     .then( function( resp ) {
@@ -63,7 +64,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
             q = 'trainer.username';
         }
         
-        var query = bookshelf.knex('trainerRunnerRequests')
+        var query = CONFIG.bookshelf.knex('trainerRunnerRequests')
         .select('trainerRunnerRequests.id as requestID', 'runner.username as runner')
         .join('users as runner', 'runner.id', 'trainerRunnerRequests.runner_id')
         .join('users as trainer', 'trainer.id', 'trainerRunnerRequests.trainer_id')
@@ -74,7 +75,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
             if( req.length === 0 ) {
                 d.reject( 'User: ' + username + ' has no pending request with id: ' + requestID );
             } else {
-                bookshelf.knex('trainerRunnerRequests')
+                CONFIG.bookshelf.knex('trainerRunnerRequests')
                 .where('id', requestID)
                 .del()
                 .then( function( resp ) {
@@ -96,7 +97,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
         var d = Q.defer();
         
         if( isTrainer ) {
-            bookshelf.knex('trainerRunnerRequests')
+            CONFIG.bookshelf.knex('trainerRunnerRequests')
             .select('trainerRunnerRequests.id as requestID', 'runner.username as runner')
             .join('users as runner', 'runner.id', 'trainerRunnerRequests.runner_id')
             .join('users as trainer', 'trainer.id', 'trainerRunnerRequests.trainer_id')
@@ -108,7 +109,7 @@ TrainerRunnerRequest = bookshelf.Model.extend({
                 d.reject( err );
             });
         } else {
-            bookshelf.knex('trainerRunnerRequests')
+            CONFIG.bookshelf.knex('trainerRunnerRequests')
             .select('trainerRunnerRequests.id as requestID', 'trainer.username')
             .join('users as runner', 'runner.id', 'trainerRunnerRequests.runner_id')
             .join('users as trainer', 'trainer.id', 'trainerRunnerRequests.trainer_id')
@@ -164,11 +165,11 @@ TrainerRunnerRequest = bookshelf.Model.extend({
 });
 
 exports.dropTable = function() {
-    return bookshelf.knex.schema.dropTableIfExists('trainerRunnerRequests');
+    return CONFIG.bookshelf.knex.schema.dropTableIfExists('trainerRunnerRequests');
 };
 
 exports.fillDatabaseWithData = function() {
-    return bookshelf.knex.schema.createTable('trainerRunnerRequests', function (table) {
+    return CONFIG.bookshelf.knex.schema.createTable('trainerRunnerRequests', function (table) {
         table.increments('id').unique();
         table.integer('trainer_id').unsigned().references('users.id');
         table.integer('runner_id').unsigned().references('users.id');

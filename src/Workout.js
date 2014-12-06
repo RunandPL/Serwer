@@ -1,7 +1,6 @@
 
-var dbConfig = require('./config/Configuration').dbConfig;
-var knex = require('knex')(dbConfig);
-var bookshelf = require('bookshelf')(knex);
+var CONFIG = require('./config/Configuration');
+var dbConfig = CONFIG.dbConfig;
 var Q = require('q');
 
 var User = require('./User');
@@ -9,7 +8,7 @@ var Route = require('./Route');
 
 var Workout, Workouts;
 
-Workout = bookshelf.Model.extend({
+Workout = CONFIG.bookshelf.Model.extend({
     tableName: 'workouts'
 },
 {
@@ -24,7 +23,10 @@ Workout = bookshelf.Model.extend({
                 var routeId = res.id;
 
                 this.forge({ lengthTime: lengthTime, burnedCalories: burnedCalories, speedRate: speedRate, user_id: userId, route_id: routeId }).save().then( function() {
-                    d.resolve( 'Training was added' );
+                    d.resolve({
+                        msg: 'Training was added',
+                        routeId: routeId
+                    });
                 },
                 function( err ) {
                     d.reject( err );
@@ -44,7 +46,7 @@ Workout = bookshelf.Model.extend({
     getAllWorkoutsOfUser: function( username ) {
         var d = Q.defer();
         
-        bookshelf.knex('workouts')
+        CONFIG.bookshelf.knex('workouts')
         .select('workouts.id', 'workouts.lengthTime', 'workouts.burnedCalories', 'workouts.speedRate',
                 'route.route as route_route', 'route.description as route_description', 'route.title as route_title', 'route.isPublic as route_isPublic', 'route.isCreatedByTrainer as route_isCreatedByTrainer', 'route.length as route_length' )
         .join('users as user', 'user.id', 'workouts.user_id')
@@ -62,13 +64,13 @@ Workout = bookshelf.Model.extend({
 });
 
 exports.dropTable = function() {
-    return bookshelf.knex.schema.dropTableIfExists('workouts');
+    return CONFIG.bookshelf.knex.schema.dropTableIfExists('workouts');
 };
 
 exports.fillDatabaseWithData = function() {
     var d = Q.defer();
     
-    bookshelf.knex.schema.createTable('workouts', function (table) {
+    CONFIG.bookshelf.knex.schema.createTable('workouts', function (table) {
         table.increments('id').unique();
         table.bigInteger('lengthTime').notNullable();
         table.integer('burnedCalories').notNullable();

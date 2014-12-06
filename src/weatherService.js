@@ -6,9 +6,9 @@ var fs = require('fs');
 // Initialize forecast
 var forecast = new Forecast(forecastConfig);
 
-var REFRESH_TIME = ( 4 * 60 * 60 );
+var REFRESH_TIME = ( 8 * 60 * 60 );
         
-var XX = 2, YY = 2; // na ile pol dzielimy siatke polski
+var XX = 10, YY = 10; // na ile pol dzielimy siatke polski
 // left most = 14.117
 // right most = 24.133
 // top most = 54.833

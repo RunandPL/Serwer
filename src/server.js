@@ -11,6 +11,7 @@ var Q = require('q');
 var CONFIG = require('./config/Configuration');
 var validator = require('validator');
 var cors = require('cors');
+var path = require('path');
 
 var secret = 'EWGWEG32T24523GSD';
 app.use(bodyParser.json());
@@ -18,16 +19,18 @@ app.use(bodyParser.urlencoded({
   extended: true
 }));
 app.use('/api', expressJwt({secret: secret}));
-
+app.use("/public", express.static(__dirname + '/../public'));
+ 
 app.use(cors());
 
-//var weatherService = require('./weatherService');
+var weatherService = require('./weatherService');
 
 var User = require('./User');
 var Route = require('./Route');
 var Workout = require('./Workout');
 var LiveWorkout = require('./LiveWorkout');
 var TrainerRunnerRequest = require('./TrainerRunnerRequest');
+var Image = require('./Image');
 
 var parseRoute = function( route ) {
     var d = Q.defer();
@@ -37,7 +40,7 @@ var parseRoute = function( route ) {
         
         for( var i=0; i < obj.length; i++ ) {
             if( !('x' in obj[i]) || !('y' in obj[i]) || !('z' in obj[i]) ) {
-                d.reject( 'Route must include array of objects with x,y and z fields' );
+                d.reject('Route must include array of objects with x,y and z fields');
             }
 
             if( !validator.isFloat(obj[i].x) || !validator.isFloat(obj[i].y) || !validator.isFloat(obj[i].z) ) {
@@ -97,7 +100,7 @@ app.post('/login', function (req, res) {
             isTrainer: user.get('isTrainer')
         };
         
-        var token = jwt.sign(profile, secret, { expiresInMinutes: 60 * 5 });
+        var token = jwt.sign(profile, secret, { expiresInMinutes: CONFIG.tokenExpirationTime() });
         res.json({ token: token });
     }, function() {
         res.status(401).json({msg:'Wrong user or password'});
@@ -168,9 +171,9 @@ app.get('/api/restricted', function(req, res) {
     });
 });
 
-//app.get('/weather/:x/:y', function(req, res) {
-//    res.send( weatherService.getWeather( req.param('x'), req.param('y') ) );
-//});
+app.get('/weather/:x/:y', function(req, res) {
+    res.send( weatherService.getWeather( req.param('x'), req.param('y') ) );
+});
 
 app.post('/api/route', function(req, res) {
     console.log('GET /api/route by ' + req.user.username);
@@ -273,10 +276,10 @@ app.post('/api/connect/reject', function(req, res) {
     }
     
     TrainerRunnerRequest.rejectRequest( req.user.username, req.user.isTrainer, requestInt ).then( function( response ) {
-        res.send( 'Request with ID: ' + requestInt + ' was rejected' );
+        res.send({ msg: 'Request with ID: ' + requestInt + ' was rejected' });
     },
     function( err ) {
-        res.status(400).json({err: err });
+        res.status(400).json({msg: err });
     });
 });
 
@@ -347,6 +350,30 @@ app.post('/api/workout', function(req, res) {
         return;
     }
     
+    var isImagesField = false;
+    if( ('images' in req.body) ) {
+        if( req.body.images.constructor !== Array ) {
+            res.status(400).json({ msg: 'Field: \'images\' must be an array' });
+            return;
+        }
+
+        for( var i=0; i < req.body.images.length; i++ ) {
+            if( typeof req.body.images[i] !== 'object' ) {
+                res.status(400).json({ msg:'All: \'images\' fields must be an objects'});
+                return;
+            }
+            if( !('x' in req.body.images[i]) || !('y' in req.body.images[i]) || !('z' in req.body.images[i]) ) {
+                res.status(400).json({ msg: 'Field: \'x\',\'y\' and \'z\' in images are required' });
+                return;
+            }
+            if( !('data' in req.body.images[i]) ) {
+                res.status(400).json({ msg: 'Field: \'data\' in images is required' });
+                return;
+            }
+            isImagesField = true;
+        }
+    }
+    
     parseRoute(req.body.route.route).then( function( response ) {
         var isPublicVar;
         if( !('isPublic' in req.body.route) ) {
@@ -386,7 +413,23 @@ app.post('/api/workout', function(req, res) {
             isPublic: isPublicVar,
             length: req.body.route.length
         }, req.body.lengthTime, req.body.burnedCalories, req.body.speedRate ).then( function( rs ) {
-            res.json({msg: rs});
+            
+            var dArray = [];
+            if( isImagesField ) {
+                for( var i=0; i < req.body.images.length; i++ ) {
+                    var x = validator.toFloat(req.body.images[i].x);
+                    var y = validator.toFloat(req.body.images[i].y);
+                    var z = validator.toFloat(req.body.images[i].z);
+
+                    dArray.push( Image.addImage( req.body.images[i].data, x, y, z, rs.routeId ) );
+                }
+            
+                Q.all( dArray ).then( function() {
+                    res.json({msg: rs.msg});
+                });
+            } else {
+                res.json({msg: rs.msg});
+            }
         },
         function( err ) {
             res.status(400).json({msg: err});
@@ -422,11 +465,23 @@ app.post('/api/live/start', function(req, res) {
     });
 });
 
+app.post('/api/live/stop', function(req, res) {
+    console.log('POST /api/live/stop by ' + req.user.username);
+    
+    LiveWorkout.stopLiveWorkout( req.user.username ).then( function( response ) {
+        res.json({msg: response});
+    },
+    function( err ) {
+        res.status(400).json({msg: err});
+    });
+});
+
+
 app.post('/api/live/update', function(req, res) {
     console.log('POST /api/live/start by ' + req.user.username);
     
-    if( !('x' in req.body) || !('y' in req.body) || !('z' in req.body) ) {
-        res.status(400).json({ msg:'Fields: \'x y z\' are required'});
+    if( !('x' in req.body) || !('y' in req.body) || !('z' in req.body) || !('runTime' in req.body) || !('calories' in req.body) || !('tempo' in req.body) || !('distance' in req.body) ) {
+        res.status(400).json({ msg:'Fields: \'x y z runTime calories tempo distance\' are required'});
         return;
     }
     
@@ -434,12 +489,18 @@ app.post('/api/live/update', function(req, res) {
     var y = validator.toFloat( req.body.y );
     var z = validator.toFloat( req.body.z );
     
-    if( isNaN(x) || isNaN(y) || isNaN(z) ) {
-        res.status(400).json({ msg:'Fields: \'x y z\' must be floats'});
+    //czasBiegu, iloscKalorii, tempo, dystans
+    var czasBiegu = validator.toFloat( req.body.runTime );
+    var iloscKalorii = validator.toFloat( req.body.calories );
+    var tempo = validator.toFloat( req.body.tempo );
+    var dystans = validator.toFloat( req.body.distance );
+    
+    if( isNaN(x) || isNaN(y) || isNaN(z) || isNaN(czasBiegu) || isNaN(iloscKalorii) || isNaN(tempo) || isNaN(dystans) ) {
+        res.status(400).json({ msg:'Fields: \'x y z runTime calories tempo distance\' must be floats'});
         return;
     }
     
-    LiveWorkout.updateLiveWorkout( req.user.username, x, y, z ).then( function( response ) {
+    LiveWorkout.updateLiveWorkout( req.user.username, x, y, z, czasBiegu, iloscKalorii, tempo, dystans ).then( function( response ) {
         res.json({msg: response});
     },
     function( err ) {
@@ -551,8 +612,97 @@ var fillAllDb = function() {
     }).then( function() {
         return Route.fillDatabaseWithData();
     }).then( function() {
+        return Image.dropTable();
+    }).then( function() {
+        return Image.fillDatabaseWithData();
+    }).then( function() {
         return Workout.fillDatabaseWithData();
     }).then( function() {
+        
+        Route.saveRoute(JSON.stringify([
+            {
+                "x": 54.4086326250163,
+                "y": 18.610104663848915,
+                "z": 1.0
+            },
+            {
+                "x": 54.409041648954904,
+                "y": 18.610635930017907,
+                "z": 1.0
+            },
+            {
+                "x": 54.40910254514612,
+                "y": 18.61085328609056,
+                "z": 1.0
+            },
+            {
+                "x": 54.40918841749733,
+                "y": 18.611016998664923,
+                "z": 1.0
+            },
+            {
+                "x": 54.40935391760528,
+                "y": 18.61122641209454,
+                "z": 1.0
+            },
+            {
+                "x": 54.40950223008439,
+                "y": 18.611545696961457,
+                "z": 1.0
+            },
+            {
+                "x": 54.40966302954622,
+                "y": 18.611988366671767,
+                "z": 1.0
+            },
+            {
+                "x": 54.41017350972818,
+                "y": 18.612376118914653,
+                "z": 1.0
+            },
+            {
+                "x": 54.41068398880181,
+                "y": 18.612720964933942,
+                "z": 1.0
+            },
+            {
+                "x": 54.411334935323275,
+                "y": 18.61045342101295,
+                "z": 1.0
+            },
+            {
+                "x": 54.41150430146093,
+                "y": 18.609759506463433,
+                "z": 1.0
+            },
+            {
+                "x": 54.411973360560744,
+                "y": 18.608679340004073,
+                "z": 1.0
+            },
+            {
+                "x": 54.41259458000862,
+                "y": 18.60760120239047,
+                "z": 1.0
+            },
+            {
+                "x": 54.41275376765117,
+                "y": 18.60708094904021,
+                "z": 1.0
+            },
+            {
+                "x": 54.41684614161236,
+                "y": 18.61196853634351,
+                "z": 1.0
+            },
+            {
+                "x": 54.41762962976175,
+                "y": 18.61258637428284,
+                "z": 1.0
+            }
+        ]), "Przykładowy opis trasy", "Tytuł trasy", true, true, 500, 1 ).then( function( response ) {
+            console.log('Route uploaded to the server');
+        })
         
         TrainerRunnerRequest.sendRequestFromTrainerToRunner( 'trainer1@email.com', 'user1@email.com' ).then( function( msg ) {
             TrainerRunnerRequest.sendRequestFromTrainerToRunner( 'trainer2@email.com', 'user1@email.com' ).then( function( msg ) {

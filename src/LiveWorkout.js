@@ -11,13 +11,6 @@ exports.startLiveWorkout = function( username, isTrainer, x, y, z  ) {
         d.reject( 'User must be an runner' );
     }
     
-    for( var i=0; i < liveTrainings.length; i++ ) {
-        if( liveTrainings[i].username === username ) {
-            d.reject( "User: " + username + " already started an workout" );
-            break;
-        }
-    }
-    
     var route = JSON.stringify([
         {
             x: x,
@@ -26,13 +19,47 @@ exports.startLiveWorkout = function( username, isTrainer, x, y, z  ) {
         }
     ]);
     
-    liveTrainings.push({
+    var obj = {
         username : username,
         route: route,
         messages: [],
         startTime: new Date()
-    });
+    };
+    
+    var exist = false;
+    for( var i=0; i < liveTrainings.length; i++ ) {
+        if( liveTrainings[i].username === username ) {
+            liveTrainings[i] = obj;
+            exist = true;
+            break;
+        }
+    }
+    
+    if( !exist ) {
+        liveTrainings.push(obj);
+    }
+    
     d.resolve( "Workout succesfully started" );
+    
+    return d.promise;
+};
+
+exports.stopLiveWorkout = function( username ) {
+    var d = Q.defer();
+    
+    var good = false;
+    for( var i=0; i < liveTrainings.length; i++ ) {
+        if( liveTrainings[i].username === username ) {
+            good = true;
+            liveTrainings.splice(i, 1);
+            d.resolve( "Workout stopped" );
+            break;
+        }
+    }
+    
+    if( !good ) {
+        d.reject( "Current user is not training" );
+    }
     
     return d.promise;
 };
@@ -56,7 +83,7 @@ exports.getLiveWorkoutOf = function( username ) {
     return d.promise;
 };
 
-exports.updateLiveWorkout = function( username, x, y, z ) {
+exports.updateLiveWorkout = function( username, x, y, z, czasBiegu, iloscKalorii, tempo, dystans ) {
     var d = Q.defer();
     
     var good = false;
@@ -67,7 +94,11 @@ exports.updateLiveWorkout = function( username, x, y, z ) {
             route.push({
                 x: x,
                 y: y,
-                z: z
+                z: z,
+                czasBiegu: czasBiegu,
+                iloscKalorii: iloscKalorii,
+                tempo: tempo,
+                dystans: dystans
             });
             liveTrainings[i].route = JSON.stringify( route );
             

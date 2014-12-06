@@ -1,19 +1,20 @@
 
-var dbConfig = require('./config/Configuration').dbConfig;
-var knex = require('knex')(dbConfig);
-var bookshelf = require('bookshelf')(knex);
+var CONFIG = require('./config/Configuration');
+var dbConfig = CONFIG.dbConfig;
+//var knex = require('knex')(dbConfig);
+//var bookshelf = require('bookshelf')(knex);
 var Q = require('q');
 
 var Users, User;
 
-User = bookshelf.Model.extend({
+User = CONFIG.bookshelf.Model.extend({
     tableName: 'users'
 },
 {
     getTrainerOfUser : function( username ) {
         var d = Q.defer();
         
-        bookshelf.knex('users')
+        CONFIG.bookshelf.knex('users')
         .select( 'trainer.username as trainer')
         .join('users as trainer', 'users.trainer_id', 'trainer.id')
         .where('users.username', username)
@@ -48,7 +49,7 @@ User = bookshelf.Model.extend({
             if( !user.get('isTrainer') ) {
                 d.reject('User is not a trainer');
             }
-            bookshelf.knex('users')
+            CONFIG.bookshelf.knex('users')
             .select('username')
             .where('trainer_id', user.get('id'))
             .then( function( response ) {
@@ -67,7 +68,7 @@ User = bookshelf.Model.extend({
         
         this.getUser( trainerUsername ).then( function( user ) {
             if( user.get('isTrainer') === true ) {
-                bookshelf.knex('users')
+                CONFIG.bookshelf.knex('users')
                 .where('username', username)
                 .update({
                     trainer_id: user.get('id')
@@ -91,7 +92,7 @@ User = bookshelf.Model.extend({
     changePassword: function( username, newPassword ) {
         var d = Q.defer();
         
-        bookshelf.knex('users')
+        CONFIG.bookshelf.knex('users')
         .where('username', username)
         .update({
             password: newPassword
@@ -204,14 +205,14 @@ User = bookshelf.Model.extend({
 exports.fillDatabaseWithData = function() {
     var d = Q.defer();
     
-    bookshelf.knex.schema.createTable('users', function (table) {
+    CONFIG.bookshelf.knex.schema.createTable('users', function (table) {
             table.increments('id').unique();
             table.string('username').unique().notNullable();
             table.string('password');
             table.boolean('isTrainer').notNullable();
             table.integer('trainer_id').unsigned().references('users.id');
     }).then( function() {
-        Users = bookshelf.Collection.extend({
+        Users = CONFIG.bookshelf.Collection.extend({
             model: User
         });
 
@@ -232,7 +233,8 @@ exports.fillDatabaseWithData = function() {
 };
 
 exports.dropTable = function() {
-    return bookshelf.knex.schema.dropTableIfExists('users');
+//    return bookshelf.knex.schema.dropTableIfExists('users');
+    return CONFIG.bookshelf.knex.raw('DROP TABLE users CASCADE');
 };
 
 exports.loginWithUsernameAndPassword = function( username, password ) {

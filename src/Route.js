@@ -1,12 +1,13 @@
 
-var dbConfig = require('./config/Configuration').dbConfig;
-var knex = require('knex')(dbConfig);
-var bookshelf = require('bookshelf')(knex);
+var CONFIG = require('./config/Configuration');
+var dbConfig = CONFIG.dbConfig;
+//var knex = require('knex')(dbConfig);
+//var bookshelf = require('bookshelf')(knex);
 var Q = require('q');
 
 var Route, Routes;
 
-Route = bookshelf.Model.extend({
+Route = CONFIG.bookshelf.Model.extend({
     tableName: 'routes'
 },
 {
@@ -14,7 +15,7 @@ Route = bookshelf.Model.extend({
     {
         var d = Q.defer();
         
-        bookshelf.knex('users')
+        CONFIG.bookshelf.knex('users')
         .where('users.id', userID)
         .join('routes', 'users.trainer_id', 'routes.owner_id')
         .select('routes.id', 'routes.route', 'routes.title', 'routes.description', 'routes.isPublic', 'routes.length')
@@ -31,12 +32,27 @@ Route = bookshelf.Model.extend({
     getRouteOf : function( username ) {
         var d = Q.defer();
 
-        bookshelf.knex('routes')
+        CONFIG.bookshelf.knex('routes')
         .join('users', 'users.id', 'routes.owner_id' )
         .where('users.username', username)
         .select('routes.id', 'routes.route', 'routes.title', 'routes.description', 'routes.isPublic', 'routes.length')
         .then( function( response ) {
-            d.resolve( response );
+//            d.resolve( response );
+            var dArray = [];
+            for( var i=0; i < response.length; i++ ) {
+                ( function( r, idx ) {
+                    dArray.push( CONFIG.bookshelf.knex('images')
+                    .where('images.route_id', r.id)
+                    .select('images.url')
+                    .then( function( resp ) {
+                        response[idx].urls = resp;
+                    }));
+                })( response[i], i );
+            }
+            
+            Q.all( dArray ).then( function() {
+                d.resolve( response );
+            });
         },
         function( err ) {
             d.reject( err );
@@ -48,12 +64,26 @@ Route = bookshelf.Model.extend({
     getPublicRoutes : function() {
         var d = Q.defer();
 
-        bookshelf.knex('routes')
+        CONFIG.bookshelf.knex('routes')
         .where('isPublic', 'true')
         .join('users', 'users.id', 'routes.owner_id' )
         .select('routes.id', 'routes.route', 'routes.title', 'routes.description', 'routes.isCreatedByTrainer', 'routes.length', 'users.username as owner')
         .then( function( response ) {
-            d.resolve( response );
+            var dArray = [];
+            for( var i=0; i < response.length; i++ ) {
+                ( function( r, idx ) {
+                    dArray.push( CONFIG.bookshelf.knex('images')
+                    .where('images.route_id', r.id)
+                    .select('images.url')
+                    .then( function( resp ) {
+                        response[idx].urls = resp;
+                    }));
+                })( response[i], i );
+            }
+            
+            Q.all( dArray ).then( function() {
+                d.resolve( response );
+            });
         },
         function( err ) {
             d.reject( err );
@@ -108,9 +138,9 @@ Route = bookshelf.Model.extend({
 exports.fillDatabaseWithData = function() {
     var d = Q.defer();
     
-    bookshelf.knex.schema.dropTableIfExists('routes').then( function( ret ) {
+    CONFIG.bookshelf.knex.raw('DROP TABLE routes CASCADE').then( function( ret ) {
         
-        return bookshelf.knex.schema.createTable('routes', function (table) {
+        return CONFIG.bookshelf.knex.schema.createTable('routes', function (table) {
             table.increments('id').unique();
             table.text('route');
             table.text('description');
