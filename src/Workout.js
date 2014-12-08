@@ -15,9 +15,6 @@ Workout = CONFIG.bookshelf.Model.extend({
     addWorkout: function( username, route, lengthTime, burnedCalories, speedRate ) {
         var d = Q.defer();
         
-        if( !username || !route || !lengthTime || !burnedCalories || !speedRate )
-            d.reject('All fields are required!');
-        
         User.getIdOfUser( username ).then( function( userId ) {
             Route.saveRoute( route.route, route.description, route.title, route.isPublic, false, route.length, userId ).then( function( res ) {
                 var routeId = res.id;
